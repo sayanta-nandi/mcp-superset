@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-06-09
+
+### Fixed
+
+- **Bulk role operations were broken** — `superset_bulk_user_role_add`, `superset_bulk_user_role_remove`, `superset_bulk_user_role_replace` and `superset_role_copy_permissions` passed `json=` instead of `json_data=` to the client, raising `TypeError` at apply time (dry-run was unaffected, so it went unnoticed).
+- **DDL/DML guard in `superset_sqllab_execute` could be bypassed** — the check only inspected the first keyword, so `WITH ... DELETE`, chained `SELECT 1; DROP ...`, parenthesised `(DELETE ...)`, `EXPLAIN ... DELETE`, `COPY` and `DO $$ BEGIN EXECUTE '...' END $$` (DDL hidden in a string literal) slipped through. It now matches dangerous keywords (including `DO`/`EXECUTE`) as whole words anywhere in the query, after stripping comments and string literals, and names the most specific operation in the rejection message.
+- **List pagination ignored `page`/`page_size`** — most `*_list` tools (including `superset_group_list`) sent them as plain query params, which Superset ignores (always returning the first page). They now use RISON pagination via the new `client.get_page()` helper. Custom endpoints (`recent_activity`, `tag/get_objects`) keep query params, as they genuinely read them.
+- **CSRF token was never refreshed on expiry** — a stale CSRF (which has its own, shorter lifetime than the JWT) caused a 400 with no retry. The client now detects CSRF-related 400s and retries once with a fresh token, without masking genuine validation errors.
+- **`granularity_sqla` guard was too strict** — it blocked legitimate non-temporal charts (maps, pie, word cloud, hierarchical). It is now required only for viz types that actually have a temporal axis.
+- **Unhandled `JSONDecodeError` on malformed JSON arguments** — tools accepting JSON strings (`columns`, `metrics`, `recipients`, `query_context`, `objects_to_tag`, `tags`, `position_json`, `filters_json`) now return a structured `{"error": ...}` instead of crashing.
+- **Auto-sync of `datasource_access`** used `PUT .../permissions/` (trailing slash) instead of the working `POST .../permissions`, so access grants on dashboard/chart create/update silently failed.
+
+### Changed
+
+- Removed reference to a non-existent `superset_rls_create_unsafe` tool in the Base RLS rejection message.
+- Consolidated three near-duplicate `datasource_access` permission lookups into a single `find_datasource_permissions` helper.
+- Standardised the dataset `related_objects` endpoint to a trailing slash, matching the database endpoint.
+
 ## [0.2.5] - 2026-04-05
 
 ### Added
